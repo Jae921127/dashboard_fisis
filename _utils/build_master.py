@@ -163,7 +163,7 @@ def build_master_dataframe(
     endBaseMm: str = "202306",
     listNo: Optional[Iterable[str]] = None,
     hierarchy_json_path: str = "fisis_hierarchy.json",
-    api_key: str = "02b3ed82f4d6fe3bc6be393add09a0ed",
+    api_key: str = "ASK FOR API KEY IF NEEDED",
 ) -> pd.DataFrame:
     """
     Fragile/light version:
@@ -251,7 +251,7 @@ def build_master_for_codes(
     endBaseMm: str,
     terms_by_list: Dict[str, str], # Now takes a dictionary of terms
     hierarchy_json_path: str,
-    api_key: str = "02b3ed82f4d6fe3bc6be393add09a0ed",
+    api_key: str = "ASK FOR API KEY IF NEEDED",
 ) -> pd.DataFrame:
     """
     Builds a master dataframe by making term-specific API calls for each list.
