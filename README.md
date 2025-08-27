@@ -2,7 +2,9 @@
 
 <img width="1142" height="524" alt="image" src="https://github.com/user-attachments/assets/8f398380-2221-4134-8c64-fcb6305e84e9" />
 
-아마 Windows 에서 warning 이 뜰텐데 무시하고 돌리셔도 되고, 마음에 걸리시면 공개되어 있는 *.py 코드 확인 후 로컬로 돌리셔도 됩니다. 다만 이경우 api_key 필요합니다. 
+아마 Windows 에서 warning 이 뜰텐데 무시하고 돌리시면 되나 (자체적으로 exe 로 만들어서 certified 되지 않았기 때문입니다), 
+
+마음에 걸리시면 공개되어 있는 *.py 코드 확인 후 로컬로 돌리셔도 됩니다. 다만 이경우 api_key 필요합니다. 
 
 만약 필요하시면 따로 요청해주시거나 FISIS에서 API 키 신청해서 발급 받으시면 됩니다.
 
