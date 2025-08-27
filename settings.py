@@ -8,7 +8,7 @@ LOCAL = ROOT / "_local"
 LOCAL.mkdir(exist_ok=True)
 
 DEFAULTS = {
-    "api_key": "02b3ed82f4d6fe3bc6be393add09a0ed",
+    "api_key": "ASK FOR API KEY IF NEEDED",
     "list_nos": ["SH150", "SH151"],
     "target_finance_cd": "0010607",
     "term": "Q",
