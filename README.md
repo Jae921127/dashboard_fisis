@@ -1,4 +1,6 @@
-첨부된 파일 중에 FisisAnalytics.zip 다운받으셔서 압축 해제후 *.exe 파일 실행시키시면 됩니다. 
+기존에 서버에 호스팅 했을때는 무료 도메인 + DNS 로는 서버 응답시간 제한에 걸려서 결과 전송이 안되는 문제가 있어서 로컬로 돌릴 수 있게끔 해 놨습니다.
+
+EXE 파일로 만들어 놓았습니다 - 첨부된 파일 중에 FisisAnalytics.zip 다운받으셔서 압축 해제후 *.exe 파일 실행시키시면 됩니다. 
 
 <img width="1142" height="524" alt="image" src="https://github.com/user-attachments/assets/8f398380-2221-4134-8c64-fcb6305e84e9" />
 
@@ -23,7 +25,7 @@
 <img width="2923" height="2088" alt="image" src="https://github.com/user-attachments/assets/88b73408-a2b3-4777-b732-3f5d8a89c738" />
 
 
-시각화 할 것들이 많다보니 꽤 오래 걸립니다. 로컬로 돌리는 거라 로컬 컴퓨팅 사양에 따라 시간은 달라질 수 있으나 터미널에서 아래와 같이 뒤에 '200'이 붙는 메세지들이 간헐적으로 출력된다면 잘 돌아가고 있는 것 입니다.
+시각화 할 것들이 많다보니 꽤 오래 걸립니다 (14900HX 기준 1분정도). 로컬로 돌리는 거라 로컬 컴퓨팅 사양에 따라 시간은 달라질 수 있으나 터미널에서 아래와 같이 뒤에 '200'이 붙는 메세지들이 간헐적으로 출력된다면 잘 돌아가고 있는 것 입니다.
 
 <img width="1417" height="76" alt="image" src="https://github.com/user-attachments/assets/0f17ea7c-1cb0-4427-8bc3-355cc7499a56" />
 
