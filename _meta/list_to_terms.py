@@ -7,7 +7,7 @@ import pandas as pd
 import sys, os
 
 # -------- Settings --------
-API_KEY = "02b3ed82f4d6fe3bc6be393add09a0ed"
+API_KEY = "ASK FOR API KEY IF NEEDED"
 
 # financeCd is required by statisticsInfoSearch; use any valid code.
 FINANCE_CD = "0010593"   # (한화생명 etc. - used only to satisfy API param)
