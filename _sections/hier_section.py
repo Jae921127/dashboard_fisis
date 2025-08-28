@@ -30,7 +30,6 @@ def _get_sub_section_index(base_month, date_ranges, global_start, global_end):
 def _section(sec: str, title: str):
     """Builds the static HTML structure for a section, including containers for dynamic plots."""
     return html.Div(className="layout", children=[
-        # Stores for state management (unchanged)
         dcc.Store(id={"type": "hover-node", "sec": sec}, data=None),
         dcc.Store(id={"type": "hover-month", "sec": sec}, data=None),
         dcc.Store(id={"type": "level-path", "sec": sec}, data=[]),
@@ -116,26 +115,22 @@ def make_hier_sections(section_cfgs, hier, namer):
                 colid_options.append({"label": label, "value": col})
             if colid_options: default_colid = colid_options[0]["value"]
         
-        # If colid is not a list, get the single value or fallback
         elif "colid" in cfg:
             default_colid = cfg["colid"][0] if isinstance(cfg["colid"], list) else cfg["colid"]
 
-        # Store the default value in our new store (it's the 9th child, index 8)
         v.children[8].data = default_colid
         
-        colid_selector_container = v.children[9].children[0].children[2] # Find the container
+        colid_selector_container = v.children[9].children[0].children[2] 
         if colid_options:
             colid_selector_container.children = dcc.RadioItems(
                 id={"type": "colid-selector", "sec": cfg["sec"]}, options=colid_options, value=default_colid,
                 labelStyle={'display': 'inline-block', 'marginRight': '10px'}, inputStyle={'marginRight': '4px'})
         
-        # Find the plot containers by their path in the layout
         ms_container = v.children[9].children[1].children[1]
         bar_container = v.children[9].children[2].children[0].children[0]
         delta_container = v.children[9].children[4]
         
         
-        # Dynamically create the graph components for all sub-sections
         delta_container.children = [html.Div(id={"type": "delta-subplot-wrapper", "sec": cfg["sec"], "sub": i}, style={'flex': 1}, children=[dcc.Graph(id={"type": "delta-plot", "sec": cfg["sec"], "sub": i}, style={"height": "250px"})]) for i in range(num_sub)]
         bar_container.children = [html.Div(id={"type": "bar-subplot-wrapper", "sec": cfg["sec"], "sub": i}, style={'flex': 1}, children=[dcc.Graph(id={"type": "bar", "sec": cfg["sec"], "sub": i}, style={"height": "420px"}, clear_on_unhover=True)]) for i in range(num_sub)]
         ms_container.children = [html.Div(id={"type": "ms-subplot-wrapper", "sec": cfg["sec"], "sub": i}, style={'flex': 1}, children=[dcc.Graph(id={"type": "market-share-line-plot", "sec": cfg["sec"], "sub": i}, style={"height": "400px"})]) for i in range(num_sub)]
@@ -302,7 +297,7 @@ def register_hier_section_callbacks(app, hier, namer, list_nos, colid, term, sec
         Input({"type":"level-path","sec": MATCH}, "data"),
         Input({"type": "delta-view-selector", "sec": MATCH}, "value"),
         Input({"type": "compared-firms", "sec": MATCH}, "data"),
-        Input({"type": "selected-colid", "sec": MATCH}, "data"), # <-- ADD THIS INPUT
+        Input({"type": "selected-colid", "sec": MATCH}, "data"), 
         State("ft-store-run-params", "data"),
         State({"type":"custom-nodes","sec": MATCH}, "data"),
         State({"type": "section-params-store", "sec": MATCH}, "data"),
@@ -335,7 +330,6 @@ def register_hier_section_callbacks(app, hier, namer, list_nos, colid, term, sec
                     end_date = run_params.get("endBaseMm")
 
                 sub_colid_val = selected_colid or (colids_list[i] if i < len(colids_list) else colid)
-                # --- FIX: Use the corrected start_date and end_date variables ---
                 sub_params = {"min_d": start_date, "max_d": end_date}
                 sub_df, _, _ = _filter_master_data_for_section(df_master, sub_params, colid, term)
                 sub_path = level_path.get(f'path_{i}', [])
@@ -412,8 +406,7 @@ def register_hier_section_callbacks(app, hier, namer, list_nos, colid, term, sec
             return go.Figure(), {"display": "none"}, no_update
 
         df_master = pd.DataFrame(master)
-        # For the donut, prioritize the firm that was actually hovered on.
-        # Fall back to the main selected firm if the hover data is incomplete.
+
         firm_cd_for_donut = hovered_firm_cd or _canon_fin_cd_value(firm_cd)
 
         global_start, global_end = run_params.get("startBaseMm"), run_params.get("endBaseMm")
@@ -516,7 +509,6 @@ def register_hier_section_callbacks(app, hier, namer, list_nos, colid, term, sec
         triggered_id = ctx.triggered_id
         is_hybrid = section_params.get("is_hybrid")
 
-        # --- FIX 1: Correctly check for a dictionary ID for the back button ---
         if isinstance(triggered_id, dict) and triggered_id.get("type") == "btn-back":
             if is_hybrid:
                 return {key: path[:-1] for key, path in (level_path or {}).items()}
@@ -528,7 +520,6 @@ def register_hier_section_callbacks(app, hier, namer, list_nos, colid, term, sec
             clickData = clickData_list[clicked_sub_index]
             if not clickData or not clickData.get("points"): raise PreventUpdate
 
-            # --- FIX 2: Extract the node_key directly from customdata, removing the need for _hover_key ---
             try:
                 key = clickData["points"][0]["customdata"]["node_key"]
             except (KeyError, IndexError):
@@ -548,7 +539,6 @@ def register_hier_section_callbacks(app, hier, namer, list_nos, colid, term, sec
 
         return no_update
     
-    # In _sections/hier_section.py
 
     @app.callback(
         Output({"type": "market-share-line-plot", "sec": MATCH, "sub": ALL}, "figure"),
@@ -606,16 +596,13 @@ def register_hier_section_callbacks(app, hier, namer, list_nos, colid, term, sec
                 all_figs.append(fig_sub)
                 continue
             
-            # 3. Calculate Market Share data ONLY for this subplot
             ms_data = compute_full_market_share_data(sub_df, hier_by_list=hier, list_nos=list_nos, colid=sub_colid_val, level_path=sub_path, entire_market_cds=entire_market, groups=groups, custom_nodes=sub_nodes)
             df_per_firm = ms_data["per_firm"]
             group_analytics = ms_data["groups"]
 
-            # For the first subplot, save its data to be used by the treemap
             if i == 0:
                 treemap_data_store = df_per_firm
 
-            # 4. Plot the traces for this subplot
             if firm_cd_norm and not df_per_firm.empty:
                 df_firm_trace = df_per_firm[df_per_firm["finance_cd"] == firm_cd_norm]
                 fig_sub.add_trace(go.Scatter(x=df_firm_trace["base_month"], y=df_firm_trace["share_pct"], name=namer.finance_label(firm_cd_norm, False), mode='lines+markers', line=dict(width=4, color="#1f77b4")))
