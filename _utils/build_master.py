@@ -4,10 +4,11 @@ import os, json, requests, re
 import xml.etree.ElementTree as ET
 import pandas as pd
 from typing import Iterable, Optional, Dict, List
+from settings import DEFAULTS
 
+API_KEY = DEFAULTS["api_key"]
 STATS_INFO_URL = "https://fisis.fss.or.kr/openapi/statisticsInfoSearch.xml"
 
-# -------- minimal helpers (no retries, no encoding tricks) --------
 def _canon_fin_cd_series(s: pd.Series) -> pd.Series:
     return (s.astype(str).str.strip().str.extract(r"(\d+)", expand=False).fillna("").str.zfill(7))
 
@@ -54,8 +55,7 @@ def _perform_sanity_check(df: pd.DataFrame, required_finance_cds: set, required_
         print(f"Cache check failed: Missing list_no(s): {required_list_nos - cached_list_nos}")
         return False
 
-    # --- New Logic for Lenient Month Checking ---
-    # Define the essential month endings for each term
+
     if term == "Q":
         essential_endings = {"03", "06", "09", "12"}
     elif term == "H":
@@ -63,13 +63,12 @@ def _perform_sanity_check(df: pd.DataFrame, required_finance_cds: set, required_
     elif term == "Y":
         essential_endings = {"12"}
     else:
-        essential_endings = set() # Default to no specific endings if term is unknown
+        essential_endings = set() 
 
-    # Filter the required months down to only the essential ones
     if essential_endings:
         essential_months = {m for m in required_months if m[4:6] in essential_endings}
     else:
-        # If term is not Q, H, or Y, fall back to checking all required months
+
         essential_months = required_months
 
     if not essential_months.issubset(cached_months):
@@ -91,7 +90,6 @@ def _get_required_terms_per_list(section_cfgs: List[Dict], global_term: str) -> 
     for cfg in section_cfgs:
         num_sub = cfg.get("sub_sec", 1)
 
-        # Ensure parameters are lists for consistent processing
         specs = cfg.get("spec", [])
         if isinstance(specs, str): specs = [specs]
         
@@ -100,24 +98,21 @@ def _get_required_terms_per_list(section_cfgs: List[Dict], global_term: str) -> 
 
         terms = cfg.get("term", [])
         if isinstance(terms, str): terms = [terms]
-        # If terms are not defined per-spec, fill with the global term
+
         if len(terms) < num_sub:
             terms.extend([global_term] * (num_sub - len(terms)))
 
-        # Loop through each sub-section (will run once for standard sections)
+
         for i in range(num_sub):
             term_for_section = terms[i]
-            
-            # Safely get spec and expr for the current sub-section
+
             spec_item = specs[i] if i < len(specs) else ""
             expr_item = exprs[i] if i < len(exprs) else ""
-            
-            # Now concatenation is safe (string + string)
+
             full_spec = spec_item + " " + expr_item
             list_nos_in_spec = token_re.findall(full_spec)
 
             for ln in set(list_nos_in_spec):
-                # Assign the term with the highest frequency (Q > H > Y)
                 if ln not in terms_by_list or precedence.get(term_for_section, 0) > precedence.get(terms_by_list.get(ln), 0):
                     terms_by_list[ln] = term_for_section
 
@@ -128,8 +123,7 @@ def _get_xml_root(url: str, params: dict, timeout: int = 15) -> ET.Element:
     r = requests.get(url, params=params, timeout=timeout)
     r.raise_for_status()
     
-    # The API responds with EUC-KR encoded content, which must be decoded
-    # into a string before being passed to the XML parser.
+
     decoded_content = r.content.decode('euc-kr')
     
     return ET.fromstring(decoded_content)
@@ -155,7 +149,7 @@ def _to_num(s):
         except Exception:
             return None
 
-# -------- core --------
+
 def build_master_dataframe(
     financeCd: str = "0010597",
     term: str = "Q",
@@ -163,7 +157,7 @@ def build_master_dataframe(
     endBaseMm: str = "202306",
     listNo: Optional[Iterable[str]] = None,
     hierarchy_json_path: str = "fisis_hierarchy.json",
-    api_key: str = "ASK FOR API KEY IF NEEDED",
+    api_key: str = API_KEY,
 ) -> pd.DataFrame:
     """
     Fragile/light version:
@@ -171,11 +165,11 @@ def build_master_dataframe(
     - no retries, no special encoding handling
     - no dtype normalization beyond what's naturally parsed
     """
-    # Load hierarchy (assume valid)
+
     with open(hierarchy_json_path, "r", encoding="utf-8") as f:
         HIER: Dict[str, dict] = json.load(f)
 
-    # Decide which lists to query
+
     req_lists = _as_list(listNo)
     lists = sorted(HIER.keys()) if not req_lists else [ln for ln in req_lists if ln in HIER]
 
@@ -190,7 +184,6 @@ def build_master_dataframe(
         account_cds = sorted([c for c in acct_map.keys() if c])
         column_ids = sorted([c for c in col_map.keys() if c])
         if not column_ids:
-            # no columns defined in hierarchy → skip values (fragile behavior)
             continue
 
         params = {
@@ -212,7 +205,6 @@ def build_master_dataframe(
             row_fin_cd = (row.findtext("finance_cd") or "").strip()
             a_cd = (row.findtext("account_cd") or "").strip()
 
-            # If hierarchy lists accounts, keep only those (fragile filter)
             if account_cds and a_cd and (a_cd not in account_cds):
                 continue
 
@@ -229,7 +221,7 @@ def build_master_dataframe(
                     "base_month": base_month,
                     "account_cd": a_cd,
                     "account_nm": a_nm,
-                    "column_id": col_id,                   # kept as-is (lowercasing is cheap but omitted here)
+                    "column_id": col_id,                 
                     "column_nm": col_map.get(col_id, ""),
                     "value": val,
                 })
@@ -240,7 +232,7 @@ def build_master_dataframe(
     ])
 
     if not df.empty:
-        # Light sort for readability
+
         df = df.sort_values(["list_no","account_cd","column_id","base_month"], kind="stable").reset_index(drop=True)
     return df
 
@@ -249,14 +241,14 @@ def build_master_for_codes(
     *,
     startBaseMm: str,
     endBaseMm: str,
-    terms_by_list: Dict[str, str], # Now takes a dictionary of terms
+    terms_by_list: Dict[str, str], 
     hierarchy_json_path: str,
     api_key: str = "ASK FOR API KEY IF NEEDED",
 ) -> pd.DataFrame:
     """
     Builds a master dataframe by making term-specific API calls for each list.
     """
-    # Group list_nos by the term they require
+
     lists_by_term = {}
     for ln, term in terms_by_list.items():
         if term not in lists_by_term:
@@ -264,7 +256,7 @@ def build_master_for_codes(
         lists_by_term[term].append(ln)
 
     all_frames = []
-    # Make separate calls for each term group
+
     for term, list_nos in lists_by_term.items():
         print(f"Fetching {len(list_nos)} lists for term '{term}'...")
         frames_for_term = []
@@ -300,22 +292,22 @@ def load_or_build_master_for_market(
     api_key: str = "02b3ed82f4d6fe3bc6be393add09a0ed",
 ) -> pd.DataFrame:
     """Loads data from cache if it's valid, otherwise builds from API and saves."""
-    # 1. Determine all requirements from settings
+
     terms_by_list = _get_required_terms_per_list(section_cfgs, global_term=term)
     required_list_nos = set(terms_by_list.keys()).union(set(listNo))
 
-    # For the sanity check, we need to generate all possible required months
+
     required_months = set()
     for t in set(terms_by_list.values()):
         required_months.update(_generate_expected_months(startBaseMm, endBaseMm, t))
 
     required_finance_cds = {str(cd) for cd in (financeCds or [])}
 
-    # 2. Check cache if it exists
+
     if cache_path and os.path.exists(cache_path):
         try:
             df_cache = pd.read_csv(cache_path)
-            # Note: The sanity check now uses the global term from the toolbar for its check.
+
             if _perform_sanity_check(df_cache, required_finance_cds, required_list_nos, required_months, term=term):
                 return df_cache
             else:
@@ -323,7 +315,7 @@ def load_or_build_master_for_market(
         except Exception as e:
             print(f"Could not read cache file. Rebuilding... Error: {e}")
 
-    # 3. If no cache or if check fails, rebuild from API
+
     print("Building master dataframe from API...")
     if not financeCds:
         return pd.DataFrame()
@@ -332,7 +324,7 @@ def load_or_build_master_for_market(
         financeCds,
         startBaseMm=startBaseMm,
         endBaseMm=endBaseMm,
-        terms_by_list=terms_by_list, # Pass the new term map
+        terms_by_list=terms_by_list, 
         hierarchy_json_path=hierarchy_json_path,
         api_key=api_key,
     )
@@ -347,7 +339,7 @@ def load_or_build_master_for_market(
 
     return df_new
 
-# Optional quick test
+
 if __name__ == "__main__":
     df = build_master_dataframe(
         financeCd="0010597",
