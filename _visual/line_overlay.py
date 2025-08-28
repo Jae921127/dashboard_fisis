@@ -36,13 +36,10 @@ def _series_for(df: pd.DataFrame, list_no: str, account_cd: str, colid: str) -> 
     Gets a data series for a specific account, using the same robust
     helper function as the main bar chart.
     """
-    # 1. Filter for the specific list_no first, mimicking the bar chart's logic.
     scope = df[df["list_no"] == list_no]
     
-    # 2. Use the known-working helper function to get the values.
     vals = values_for_accounts(scope, [account_cd], colid)
     
-    # 3. Reindex to ensure all months are present, filling missing ones with 0.
     all_months = months_sorted(df)
     if vals.empty:
         return pd.Series(0.0, index=pd.Index(all_months, name="base_month"))
@@ -53,7 +50,6 @@ def _series_for(df: pd.DataFrame, list_no: str, account_cd: str, colid: str) -> 
 def _eval_expr(df: pd.DataFrame, formula: str, colid: str, hier: dict) -> pd.Series:
     tokens = TOKEN_RE.findall(formula)
     if not tokens:
-        # Fallback for empty or unparseable formulas
         return pd.Series(0.0, index=pd.Index(months_sorted(df), name="base_month"))
 
     op = "+"
@@ -62,15 +58,11 @@ def _eval_expr(df: pd.DataFrame, formula: str, colid: str, hier: dict) -> pd.Ser
         if sign:
             op = sign
 
-        # Check if the token is a LIST:ACCOUNT or just a LIST
         if ":" in item:
-            # Existing logic for 'LIST:ACCOUNT' tokens
             lst, acd = item.split(":")
             s = _series_for(df, lst, acd, colid)
         else:
-            # New logic for bare 'LIST' tokens
             list_no = item
-            # Use the helper function to sum the top-level accounts for the list
             s = parent_series_for_list(df, hier[list_no], colid)
 
         if acc is None:
@@ -102,10 +94,7 @@ def _eval_expr_cross_sectional(
         op, acc = "+", None
         for sign, item in tokens:
             if sign: op = sign
-            
-            # Here, 'item' is a list_no like 'SH001'. We pair it with the current account_cd.
             list_no = item
-            # Get the series for this specific account, then extract the single month's value
             series = _series_for(df, list_no, acd, colid)
             val = series.get(base_month, 0.0)
 
@@ -130,7 +119,7 @@ def add_line_overlay(
     expr_nm: str,
     hier: dict,
     namer=None,
-    compared_cds: Optional[List[str]] = None, # <-- NEW ARGUMENT
+    compared_cds: Optional[List[str]] = None, 
 ):
     """Draws line chart overlays for the main firm, market, groups, and compared firms."""
     styles = [
@@ -163,16 +152,14 @@ def add_line_overlay(
         scopes_to_process.append({"df": df_group, "label": gname, "style": styles[style_idx % len(styles)]})
         style_idx += 1
 
-    # --- START OF MODIFICATION ---
-    # Add a scope for each compared firm
     for comp_cd in (compared_cds or []):
-        if comp_cd != firm_cd_main: # Avoid plotting the main firm twice
+        if comp_cd != firm_cd_main: 
              df_comp = df_market[df_market["finance_cd"] == comp_cd]
              if not df_comp.empty:
                  comp_name = namer.finance_label(comp_cd, include_id=False)
                  scopes_to_process.append({"df": df_comp, "label": comp_name, "style": styles[style_idx % len(styles)]})
                  style_idx += 1
-    # --- END OF MODIFICATION ---
+
 
     all_series_data = []
     all_values = []
