@@ -19,8 +19,6 @@ from _sections.profit_section import (make_profit_sections,
 from _utils.build_master import load_or_build_master_for_market
 from _helpers.filter import _canon_fin_cd_series
 
-# --- 1. SETUP ---
-# API_KEY and login-specific helpers are removed
 
 def load_app_resources(paths):
     """Loads app resources like hier, FIN_MAP, and NAMER, using a cache for speed."""
@@ -54,18 +52,14 @@ def lists_from_specs(cfgs):
             if isinstance(item, str): out.update(pat.findall(item))
     return sorted(out)
 
-# --- 2. MAIN APP CREATION ---
-
 def create_app():
     app = Dash(__name__, suppress_callback_exceptions=True)
     app.index_string = INDEX_STRING
 
-    # --- Pre-load all necessary resources ONCE ---
     hier, FIN_MAP, NAMER = load_app_resources(PATHS)
     all_section_configs = [sec for group in DEFAULTS["sections"] for sec in group['content']]
     auto_list_nos = lists_from_specs(all_section_configs)
 
-    # --- Build the entire main application layout ONCE ---
     components_by_sec_id = {}
     for group in DEFAULTS["sections"]:
         group_id, configs = group["section_id"], group["content"]
@@ -101,7 +95,6 @@ def create_app():
         toplevel_content = html.Div([dcc.Tabs(id={"type": "inner-tabs", "group": group_label}, value=first_inner_tab_value, children=inner_tabs_list), html.Div(children=inner_tab_content_list)])
         toplevel_content_containers.append(html.Div(id={"type": "toplevel-content", "group": group_label}, children=toplevel_content, style={'display': 'none'}))
 
-    # --- Set the ROOT layout directly to the main application layout ---
     app.layout = html.Div([
         dcc.Store(id="ft-store-master", data=None),
         dcc.Store(id="ft-store-fin-map", data=FIN_MAP.to_dict("records")),
@@ -109,12 +102,7 @@ def create_app():
         dcc.Tabs(id="toplevel-tabs", value=first_toplevel_tab_value, children=toplevel_tabs),
         html.Div(id="toplevel-content-wrapper", children=toplevel_content_containers)
     ])
-
-    # --- REGISTER ALL CALLBACKS ONCE AT STARTUP ---
-
-    # -- Auth callbacks have been removed --
-
-    # -- Main Data Loading Callback (now a standard callback) --
+  
     @app.callback(
         Output("ft-store-master", "data"),
         Input("ft-store-run-trigger", "data"),
@@ -148,7 +136,7 @@ def create_app():
         print("Data loading complete!")
         return df_master.to_dict("records")
 
-    # -- Tab Visibility Callbacks --
+
     @app.callback(Output({"type": "toplevel-content", "group": ALL}, "style"), Input("toplevel-tabs", "value"), State({"type": "toplevel-content", "group": ALL}, "id"))
     def switch_toplevel_tab_visibility(active_toplevel_tab, tab_ids):
         return [{'display': 'block' if tab_id["group"] == active_toplevel_tab else 'none'} for tab_id in tab_ids]
@@ -157,7 +145,7 @@ def create_app():
     def switch_inner_tab_visibility(active_inner_tab, tab_ids):
         return [{'display': 'block' if tab_id["tab"] == active_inner_tab else 'none'} for tab_id in tab_ids]
 
-    # -- State Reset Callback --
+
     @app.callback(Output({"type": "level-path", "sec": ALL}, "data", allow_duplicate=True), Output({"type": "ps-level-path", "sec": ALL}, "data", allow_duplicate=True), Output({"type": "compared-firms", "sec": ALL}, "data", allow_duplicate=True), Output({"type": "ps-compared-firms", "sec": ALL}, "data", allow_duplicate=True), Input("toplevel-tabs", "value"), Input({"type": "inner-tabs", "group": ALL}, "value"), prevent_initial_call=True)
     def reset_section_state_on_navigate(toplevel_tab, inner_tabs_values):
         ctx = callback_context
@@ -167,7 +155,7 @@ def create_app():
         num_profit_compared = len(ctx.outputs_grouping[3])
         return ([[] for _ in range(num_hier_sections)], [[] for _ in range(num_profit_sections)], [[] for _ in range(num_hier_compared)], [[] for _ in range(num_profit_compared)])
 
-    # -- Register All Section-Specific Callbacks --
+
     register_firm_toolbar_callbacks(app, FIN_MAP)
     for group in DEFAULTS["sections"]:
         group_id, configs = group["section_id"], group["content"]
