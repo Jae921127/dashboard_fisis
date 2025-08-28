@@ -18,10 +18,6 @@ LEGEND_FS = 8
 TICK_FS = 8
 ANNOT_FS = 12
 
-
-
-
-# ---------- small utils ----------
 def natural_key(s: str):
     return [int(t) if t.isdigit() else t for t in re.split(r'(\d+)', str(s))]
 
@@ -69,22 +65,18 @@ def apply_min_share_matrix(y_by_node: Dict[str, List[float]], min_share: float =
             if sum_abs == 0:
                 continue
 
-            # Cap min_share so it's feasible: t * k <= 1
             k = len(group)
             t = min_share if min_share * k <= 1.0 else (1.0 / k)
 
-            # Required abs after threshold
             req_abs = {n: max(abs(v), t * sum_abs) for n, v in group.items()}
             total_req = sum(req_abs.values())
 
-            # If total grows, scale all back to fit exactly
             scale_back = sum_abs / total_req if total_req > 0 else 1.0
 
             for n, v in group.items():
                 adj_abs = req_abs[n] * scale_back
                 out[n][i] = adj_abs if sign > 0 else -adj_abs
 
-        # zero-valued nodes remain zero for this month
     return out
 
 def load_hierarchy(hier_json_path: str | Path = "_local/fisis_hierarchy.json") -> Dict[str, dict]:
@@ -109,18 +101,15 @@ def parse_custom_nodes(spec: str, hier: dict) -> List[str]:
     if not parts:
         return []
 
-    # Determine the type of spec before processing
     is_multi_list_spec = len(parts) > 1 and all(":" not in p for p in parts)
     is_single_list_spec = len(parts) == 1 and ":" not in parts[0]
 
     out = []
     if is_multi_list_spec:
-        # Case 1: "SH001 + SH002". Create list-level nodes for a high-level view.
         for list_no in parts:
             out.append(f"list:{list_no}")
 
     elif is_single_list_spec:
-        # Case 2: "SH022". Expand to its top-level accounts for an immediate breakdown.
         list_no = parts[0]
         if list_no in hier:
             top_accounts = get_top_level_accounts(hier[list_no])
@@ -128,20 +117,16 @@ def parse_custom_nodes(spec: str, hier: dict) -> List[str]:
                 out.append(f"acc:{list_no}:{acd}")
 
     else:
-        # Case 3: Any spec containing at least one account ID (e.g., "SH001:A + SH004:A2").
-        # Treat it as a standard custom chart of individual accounts.
         for p in parts:
             if ":" in p:
                 lst, acd = p.split(":", 1)
                 out.append(f"acc:{lst.strip()}:{acd.strip()}")
             else:
-                # If a bare list is mixed with accounts, treat it as a list total.
                 out.append(f"list:{p}")
 
     return out
 
 
-# ---------- hierarchy helpers ----------
 def get_top_level_accounts(H: dict) -> List[str]:
     layers = H.get("layers", [])
     if not layers:
@@ -156,7 +141,6 @@ def get_children(H: dict, parent_cd: Optional[str]) -> List[str]:
     return sorted(kids, key=natural_key)
 
 
-# ---------- values ----------
 def values_for_accounts(df_master: pd.DataFrame, account_cds: List[str], colid: str) -> pd.DataFrame:
     m = df_master[(df_master["column_id"] == colid) & (df_master["account_cd"].isin(account_cds))].copy()
     if m.empty:
@@ -167,11 +151,9 @@ def values_for_accounts(df_master: pd.DataFrame, account_cds: List[str], colid: 
 
 def parent_series_for_list(df_master: pd.DataFrame, Hn: dict, colid: str) -> pd.Series:
     """Total series for a list across months as sum of its top accounts."""
-    # This is the fix: filter the incoming dataframe by the specific list_no
     list_no = Hn["list_no"]
     df_scoped_to_list = df_master[df_master["list_no"] == list_no]
 
-    # Use the full month range for a consistent axis, but the scoped data for calculation
     months = months_sorted(df_master)
     tops = get_top_level_accounts(Hn)
     vals = values_for_accounts(df_scoped_to_list, tops, colid)
@@ -179,7 +161,6 @@ def parent_series_for_list(df_master: pd.DataFrame, Hn: dict, colid: str) -> pd.
     if vals.empty:
         return pd.Series(0.0, index=pd.Index(months, name="base_month"))
 
-    # Get the sum from the scoped data and reindex against the full month list
     ser = vals.groupby("base_month")["value"].sum()
     return ser.reindex(months).fillna(0.0)
 
@@ -195,7 +176,6 @@ def node_parent_values(
 ) -> Tuple[str, List[str], pd.DataFrame]:
     months = months_sorted(df_master)
 
-    # 0) Custom Nodes 
     if custom_nodes and len(level_path) == 0:
         nodes = custom_nodes[:]
         rows = []
@@ -204,25 +184,19 @@ def node_parent_values(
                 _, listno, acd = key.split(":")
                 scope = df_master[df_master["list_no"] == listno]
 
-                # ⇩⇩ CURRENT-LEVEL VALUE ONLY (no child sums) ⇩⇩
                 vals = values_for_accounts(scope, [acd], colid)
 
-                # print(f"--- Debugging vals for node: {key} ---")
-                # print(vals.to_string())
-                # print("--------------------------------------")
 
                 ser = (vals.groupby("base_month")["value"].sum()
                        .reindex(months).fillna(0.0)) if not vals.empty else pd.Series(0.0, index=pd.Index(months, name="base_month"))
                 rows.append(pd.DataFrame({"base_month": months, "node_id": key, "value": ser.values}))
             elif key.startswith("list:"):
-                # Allow 'list:SH150' too, sum its top accounts
                 listno = key.split(":")[1]
                 ser = parent_series_for_list(df_master, hier_by_list[listno], colid)
                 rows.append(pd.DataFrame({"base_month": months, "node_id": key, "value": ser.values}))
         parent_vals = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["base_month","node_id","value"])
         return "__CUSTOM__", nodes, parent_vals
 
-    # 1) Multi-list root
     if len(list_nos) > 1 and len(level_path) == 0:
         rows = []
         for ln in list_nos:
@@ -231,38 +205,32 @@ def node_parent_values(
         parent_vals = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["base_month","node_id","value"])
         return "__MULTI__", list_nos[:], parent_vals
 
-    # 2) Single-list root (no path set yet)
     if len(level_path) == 0 and len(list_nos) == 1:
         active = list_nos[0]
         nodes = get_top_level_accounts(hier_by_list[active])
         parent_vals = _sum_over_nodes_in_list(df_master, hier_by_list, active, nodes, colid)
         return active, nodes, parent_vals
 
-    # 3) We have a path; figure out the active list
     head = level_path[0]
     if head.startswith("list:"):
         active = head.split(":")[1]
     elif head.startswith("acc:"):
-        _, active, _ = head.split(":", 2)   # path can start with an account in single-list mode
+        _, active, _ = head.split(":", 2) 
     else:
         active = list_nos[0]
 
-    # 4) Single-element path
     if len(level_path) == 1:
         last = level_path[0]
         if last.startswith("acc:"):
-            # *** FIX: treat ["acc:LIST:ACD"] as "children of ACD"
             _, listno, acd = last.split(":", 2)
             nodes = get_children(hier_by_list[listno], acd)
             parent_vals = _sum_over_nodes_in_list(df_master, hier_by_list, listno, nodes, colid)
             return listno, nodes, parent_vals
         else:
-            # ["list:LIST"] → list root (top accounts)
             nodes = get_top_level_accounts(hier_by_list[active])
             parent_vals = _sum_over_nodes_in_list(df_master, hier_by_list, active, nodes, colid)
             return active, nodes, parent_vals
-
-    # 5) Deeper paths → children of the last account
+            
     last = level_path[-1]
     if last.startswith("acc:"):
         _, listno, acd = last.split(":", 2)
@@ -271,21 +239,18 @@ def node_parent_values(
         return listno, nodes, parent_vals
     
     if level_path:
-        active_list_no = list_nos[0] # Assume a single list context for deep paths
-        parent_acd = level_path[-1]  # This is either specific ('acc:...') or generic ('A')
+        active_list_no = list_nos[0] 
+        parent_acd = level_path[-1] 
 
-        # If the path is from side-by-side mode, it's generic (e.g., 'A')
-        # If it's from another mode, it's specific (e.g., 'acc:SH001:A')
         if mode != 'side-by-side':
-            try: # Parse the specific path to get the correct parent account
+            try: 
                 _, active_list_no, parent_acd = parent_acd.split(":", 2)
             except ValueError:
-                pass # Fallback if path is malformed
+                pass 
         nodes = get_children(hier_by_list.get(active_list_no, {}), parent_acd)
         parent_vals = _sum_over_nodes_in_list(df_master, hier_by_list, active_list_no, nodes, colid)
         return active_list_no, nodes, parent_vals
 
-    # 6) Fallback to list root
     nodes = get_top_level_accounts(hier_by_list[active])
     parent_vals = _sum_over_nodes_in_list(df_master, hier_by_list, active, nodes, colid)
     return active, nodes, parent_vals
@@ -336,7 +301,6 @@ def make_hier_stacked_figure(
     all_traces = []
     all_values_for_scaling = []
 
-    # 1. Determine the full set of nodes (accounts) from a representative firm to create a consistent color map.
     first_firm_cd = next(iter(firms_to_plot), None)
     color_map = {}
     if first_firm_cd:
@@ -346,7 +310,6 @@ def make_hier_stacked_figure(
         for i, node_id in enumerate(nodes_for_color):
             color_map[node_id] = qualitative.Plotly[i % len(qualitative.Plotly)]
 
-    # 2. Loop through each firm to generate its set of stacked traces with a unique offset
     for i, (firm_cd, style_info) in enumerate(firms_to_plot.items()):
         pattern = style_info.get("pattern", "")
         firm_df = df_master[df_master["finance_cd"] == firm_cd]
@@ -360,13 +323,11 @@ def make_hier_stacked_figure(
         yv_vis = apply_min_share_matrix(yv, min_share=0.02)
         firm_name = namer.finance_label(firm_cd, include_id=False) if namer else firm_cd
 
-        # This inner function generates traces for a single firm's stack
         def generate_traces_for_firm(p_listno, node_list, y_values):
             firm_traces = []
             title = f"{firm_name}{' ('+pattern+')' if pattern else ''}"
             
             for n_id in node_list:
-                # Determine the correct node key for hover and the trace name
                 node_key_for_hover = n_id
                 if p_listno not in ("__MULTI__", "__CUSTOM__"):
                     trace_name = namer.account_label(p_listno, n_id, descendent=False, include_id=False)
@@ -379,7 +340,7 @@ def make_hier_stacked_figure(
                     name=trace_name,
                     x=months, 
                     y=y_values.get(n_id, []),
-                    offsetgroup=str(i), # Assign all traces for this firm to the same offset group
+                    offsetgroup=str(i),
                     marker=dict(pattern=dict(shape=pattern), color=color_map.get(n_id)),
                     legendgroup=title,
                     legendgrouptitle_text=title,
@@ -390,16 +351,14 @@ def make_hier_stacked_figure(
         
         all_traces.extend(generate_traces_for_firm(parent_listno, nodes, yv_vis))
 
-    # 3. Rescale all traces now that the global scale is known
     scale, unit_lab = select_rescaler_from_values(all_values_for_scaling)
     for trace in all_traces:
         trace.y = [y / scale if y is not None else None for y in trace.y]
 
-    # 4. Correctly scoped Y-axis title logic
     section_list_nos = set()
     if first_firm_cd:
         _, final_nodes, _ = node_parent_values(df_master[df_master["finance_cd"] == first_firm_cd], hier_by_list, list_nos, colid, level_path, custom_nodes=custom_nodes)
-        final_parent_listno = "__CUSTOM__" # Default for spec-driven charts
+        final_parent_listno = "__CUSTOM__"
         if level_path: 
             last_path = level_path[-1]
             if ":" in last_path: final_parent_listno = last_path.split(":")[1]
@@ -421,10 +380,9 @@ def make_hier_stacked_figure(
         if not col_nm_series.empty: y_label = ", ".join(col_nm_series.unique())
     if unit_lab: y_label = f"{y_label} ({unit_lab})"
             
-    # 5. Create the final figure
     fig = go.Figure(all_traces)
     fig.update_layout(
-        barmode="relative", # Use "relative" (stacking) in combination with offsetgroup
+        barmode="relative", 
         legend=dict(tracegroupgap=20, orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.0, font=dict(size=LEGEND_FS)),
         margin=dict(l=10, r=10, t=40, b=40),
         xaxis=dict(title=dict(font=dict(size=AXIS_TITLE_FS)), tickfont=dict(size=TICK_FS), showgrid=False),
@@ -433,7 +391,6 @@ def make_hier_stacked_figure(
     )
     return fig
 
-# ---------- hover helpers (for side panel) ----------
 def hover_summary_other_nodes(
     hier_by_list: Dict[str, dict],
     parent_listno: str,
@@ -448,7 +405,6 @@ def hover_summary_other_nodes(
     Handles either multi-list (hover key 'list:...') or inside-list (usually 'acc:list:acd').
     If the hovered key doesn't match the expected pattern for the current level, no exclusion.
     """
-    # CUSTOM ROOT: nodes are 'acc:LIST:ACD' or 'list:LIST'
     if parent_listno == "__CUSTOM__":
         hovered_id = hovered_node_key if (hovered_node_key.startswith("acc:") or hovered_node_key.startswith("list:")) else None
         items = []
@@ -466,7 +422,6 @@ def hover_summary_other_nodes(
         items.sort(key=lambda x: natural_key(x[0]))
         return items
 
-    # MULTI-LIST ROOT: nodes are list_nos; hovered is like 'list:SH001'
     if parent_listno == "__MULTI__":
         hovered_id = hovered_node_key.split(":")[1] if hovered_node_key.startswith("list:") else None
         items = []
@@ -479,7 +434,6 @@ def hover_summary_other_nodes(
         items.sort(key=lambda x: natural_key(x[0]))
         return items
 
-    # INSIDE A LIST: nodes are account_cds; hovered is ideally 'acc:list:acd'
     hovered_acd = None
     if hovered_node_key.startswith("acc:"):
         try:
@@ -511,7 +465,6 @@ def donut_for_hovered_node(
     safe_month = str(base_month) if base_month is not None else ""
     num_legend_items = 0
 
-    # LIST NODE BRANCH (This branch remains unchanged as the total of a list IS the sum of its children)
     if hovered_node_key.startswith("list:"):
         list_no = hovered_node_key.split(":")[1]
         Hn = hier_by_list[list_no]
@@ -553,21 +506,16 @@ def donut_for_hovered_node(
         )
         return fig, scale_d, unit_d, num_legend_items
 
-    # ACCOUNT NODE BRANCH
     _, list_no, acd = hovered_node_key.split(":")
     Hn = hier_by_list[list_no]
     kids = get_children(Hn, acd)
     scope = df_master[df_master["list_no"] == list_no]
 
-    if kids: # The hovered account has children
-        # --- START OF FIX ---
-        # 1. Get the hovered account's OWN value for the center display
+    if kids: 
         own_vals = values_for_accounts(scope, [acd], colid)
         total = (own_vals.groupby("base_month")["value"].sum().get(safe_month, 0.0)) if not own_vals.empty else 0.0
-        
-        # 2. Get the CHILDREN'S values for the donut slices (this part is unchanged)
+
         vals = values_for_accounts(scope, kids, colid)
-        # --- END OF FIX ---
 
         if vals.empty or vals[vals["base_month"] == safe_month].empty:
             labels, values = ["하위 없음"], [1]
@@ -578,17 +526,15 @@ def donut_for_hovered_node(
             order = sorted(range(len(ids)), key=lambda k: natural_key(labels_unsorted[k]))
             labels = [labels_unsorted[k] for k in order]
             values = [float(agg.loc[cid]) for cid in ids]
-    else: # The hovered account has NO children (leaf node)
-        # This branch is already correct, as it uses the node's own value for the total
+    else: 
         own = values_for_accounts(scope, [acd], colid)
         total = (own.groupby("base_month")["value"].sum().get(safe_month, 0.0)) if not own.empty else 0.0
         labels, values = ["(하위계정없음)"], [1 if total == 0 else total]
     
-    # Common logic for formatting and creating the final figure
     neg_mask = [(v is not None and ensure_numeric(v) < 0) for v in values]
     pull = [0.06 if isneg else 0.0 for isneg in neg_mask]
     labels = [(lbl + " (−)") if isneg else lbl for lbl, isneg in zip(labels, neg_mask)]
-    scale_d, unit_d = select_rescaler_from_values(values + [total]) # Include total in scaling
+    scale_d, unit_d = select_rescaler_from_values(values + [total]) 
     scaled_total = ensure_numeric(total) / (scale_d or 1.0)
     num_legend_items = len(labels)
 
