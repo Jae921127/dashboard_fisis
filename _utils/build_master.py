@@ -243,7 +243,7 @@ def build_master_for_codes(
     endBaseMm: str,
     terms_by_list: Dict[str, str], 
     hierarchy_json_path: str,
-    api_key: str = "ASK FOR API KEY IF NEEDED",
+    api_key: str = API_KEY,
 ) -> pd.DataFrame:
     """
     Builds a master dataframe by making term-specific API calls for each list.
@@ -289,7 +289,7 @@ def load_or_build_master_for_market(
     section_cfgs: list,
     hierarchy_json_path: str,
     cache_path: str = "_local/master_df.csv",
-    api_key: str = "02b3ed82f4d6fe3bc6be393add09a0ed",
+    api_key: str = API_KEY,
 ) -> pd.DataFrame:
     """Loads data from cache if it's valid, otherwise builds from API and saves."""
 
