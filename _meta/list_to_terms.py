@@ -5,32 +5,31 @@ import requests
 import xml.etree.ElementTree as ET
 import pandas as pd
 import sys, os
+from settings import DEFAULTS
 
-# -------- Settings --------
-API_KEY = "ASK FOR API KEY IF NEEDED"
 
-# financeCd is required by statisticsInfoSearch; use any valid code.
-FINANCE_CD = "0010593"   # (한화생명 etc. - used only to satisfy API param)
+API_KEY = DEFAULTS["api_key"]
 
-# term / period (choose a short window; we only need schema, not values)
+FINANCE_CD = "0010593"  
+
 TERM = "Y"
 START_BASE_MM = "202201"
 END_BASE_MM   = "202303"
 
-# NEW: terms to probe and list_no to exclude
+
 TERMS_TO_TEST = ["Q", "H", "Y"]
 EXCLUDE_LIST_NOS = {"SH168", "SH141"}
 
-# Endpoints
+
 STATS_LIST_URL = "https://fisis.fss.or.kr/openapi/statisticsListSearch.xml"
 STATS_INFO_URL = "https://fisis.fss.or.kr/openapi/statisticsInfoSearch.xml"
 
-# --- Optional: make console UTF-8 for pretty prints ---
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 os.environ.setdefault("PYTHONUTF8", "1")
 
-# --------- Encoding helpers ----------
+
 ENC_DECL_RE = re.compile(rb'^<\?xml[^>]*encoding=["\']([^"\']+)["\']', re.IGNORECASE)
 
 def _extract_declared_encoding(xml_bytes: bytes) -> str | None:
@@ -56,21 +55,21 @@ def _to_utf8_xml_bytes(xml_bytes: bytes) -> bytes:
                   r'\1utf-8\2', text, count=1)
     return text.encode("utf-8")
 
-# --------- HTTP/XML helpers ----------
+
 def _get_xml_root(url: str, params: dict, timeout=25) -> ET.Element:
     r = requests.get(url, params=params, timeout=timeout)
     r.raise_for_status()
     xml_utf8 = _to_utf8_xml_bytes(r.content)
     root = ET.fromstring(xml_utf8)
 
-    # FISIS error envelope (if any)
+  
     err_cd = root.findtext(".//err_cd")
     err_msg = root.findtext(".//err_msg")
     if err_cd and err_cd != "000":
         raise RuntimeError(f"API error {err_cd}: {err_msg}")
     return root
 
-# --------- Step 1: get all (list_no, list_nm) from statisticsListSearch ---------
+
 def fetch_stats_list_all(lrgDiv="H", sleep_sec=0.1, max_pages=200) -> pd.DataFrame:
     page = 1
     rows = []
@@ -99,7 +98,7 @@ def fetch_stats_list_all(lrgDiv="H", sleep_sec=0.1, max_pages=200) -> pd.DataFra
 
     df = pd.DataFrame(rows, columns=["list_no", "list_nm"])
 
-    # Only dedup by list_no (keep first) — per requirement
+
     before = len(df)
     df = df.drop_duplicates(subset=["list_no"], keep="first")
     after = len(df)
@@ -108,7 +107,7 @@ def fetch_stats_list_all(lrgDiv="H", sleep_sec=0.1, max_pages=200) -> pd.DataFra
 
     return df.sort_values(["list_no"], kind="stable").reset_index(drop=True)
 
-# --------- Step 2: for each list_no, use statisticsInfoSearch to get accounts & columns ---------
+
 def fetch_info_schema_and_accounts(list_no: str,
                                    finance_cd: str = FINANCE_CD,
                                    term: str = TERM,
@@ -136,7 +135,7 @@ def fetch_info_schema_and_accounts(list_no: str,
         try:
             root = _get_xml_root(STATS_INFO_URL, params=params)
 
-            # 2.a Parse <description>/<column>
+
             columns = []
             for col_node in root.findall(".//description/column"):
                 col_id = (col_node.findtext("column_id") or "").strip()
@@ -144,7 +143,7 @@ def fetch_info_schema_and_accounts(list_no: str,
                 if col_id:
                     columns.append((col_id, col_nm))
 
-            # 2.b Collect distinct (account_cd, account_nm) from <list>/<row>
+
             acct_set = set()
             for row in root.findall(".//list/row"):
                 a_cd = (row.findtext("account_cd") or "").strip()
@@ -157,12 +156,12 @@ def fetch_info_schema_and_accounts(list_no: str,
             return columns, accounts
         except Exception as e:
             if attempt == max_retries:
-                # On final failure, surface as empty to caller
+
                 print(f"[ERROR] statisticsInfoSearch list_no={list_no}, term={term}: {e}")
                 return [], []
             time.sleep(0.8 * attempt)
 
-# ---------- NEW: probe which terms work per list_no ----------
+
 def build_terms_map(master_df: pd.DataFrame,
                     terms=TERMS_TO_TEST,
                     exclude=EXCLUDE_LIST_NOS,
@@ -189,8 +188,7 @@ def build_terms_map(master_df: pd.DataFrame,
                 start_mm=START_BASE_MM,
                 end_mm=END_BASE_MM
             )
-            # Consider success when we get any schema/accounts back.
-            # (If the API rejects 'term', fetch will fail and return [],[].)
+
             if cols or accts:
                 working.append(t)
             time.sleep(sleep_sec)
@@ -203,32 +201,30 @@ def build_terms_map(master_df: pd.DataFrame,
     print(f"[ok] Saved list_no→terms map: {out_csv_path}  (rows={len(out)})")
     return out
 
-# --------- Step 3/4: Build the 3-level mapping and save ---------
 def main():
-    # 1) Master (list_no, list_nm)
+
     master = fetch_stats_list_all(lrgDiv="H")
     if master.empty:
         print("[warn] No (list_no, list_nm) fetched.")
         return
     print(f"[ok] Statistics lists fetched: {len(master)}")
 
-    # NEW: Build and save list_no → available terms map (excluding SH168/SH141)
+
     _ = build_terms_map(master_df=master,
                         terms=TERMS_TO_TEST,
                         exclude=EXCLUDE_LIST_NOS,
                         out_csv_path="_local/fisis_list_terms_map.csv")
 
-    # 2) For each list_no, pull schema & accounts, then form cartesian (account x column)
+
     out_rows = []
     for _, rec in master.iterrows():
         ln = str(rec["list_no"])
         if ln in EXCLUDE_LIST_NOS:
-            continue  # optional: also skip in the big mapping if you want
+            continue 
         lm = rec["list_nm"]
         columns, accounts = fetch_info_schema_and_accounts(ln)
 
         if not columns and not accounts:
-            # Preserve the list even if there is no schema/accounts
             out_rows.append({
                 "list_no": ln, "list_nm": lm,
                 "account_cd": None, "account_nm": None,
@@ -237,7 +233,6 @@ def main():
             continue
 
         if not accounts:
-            # Schema exists but no accounts in the slice; still keep schema
             for col_id, col_nm in columns:
                 out_rows.append({
                     "list_no": ln, "list_nm": lm,
@@ -246,7 +241,6 @@ def main():
                 })
             continue
 
-        # One-to-many-to-many mapping:
         for a_cd, a_nm in accounts:
             for col_id, col_nm in columns:
                 out_rows.append({
@@ -260,26 +254,23 @@ def main():
         columns=["list_no", "list_nm", "account_cd", "account_nm", "column_id", "column_nm"]
     )
 
-    # Natural MultiIndex form:
+
     df_mi = df.set_index(["list_no", "list_nm", "account_cd", "account_nm", "column_id", "column_nm"]).sort_index()
 
-    # ---- Save outputs ----
+
     csv_path = "_local/fisis_list_account_column_map.csv"
     xlsx_path = "_local/fisis_list_account_column_map.xlsx"
 
-    # CSV (UTF-8 BOM) for Excel compatibility
+
     df.to_csv(csv_path, index=False, encoding="utf-8-sig")
     print(f"[ok] Saved CSV: {csv_path}")
 
     with pd.ExcelWriter(xlsx_path, engine="xlsxwriter") as writer:
-        # Flat mapping
         df.to_excel(writer, index=False, sheet_name="flat")
-
-        # MultiIndex view (index=True → levels as index columns)
         df_mi.to_excel(writer, sheet_name="multiindex")
 
         wb = writer.book
-        base_font = "Malgun Gothic"  # or "NanumGothic"
+        base_font = "Malgun Gothic"  
         hdr_fmt = wb.add_format({"bold": True, "font_name": base_font, "font_size": 11})
         body_fmt = wb.add_format({"font_name": base_font, "font_size": 10})
 
