@@ -11,7 +11,7 @@ def _calculate_delta_series(value_series: pd.Series, term: str) -> Dict[str, pd.
 
     df = value_series.sort_index()
     
-    periods_1y, periods_2y = 4, 8 # Default for Quarterly
+    periods_1y, periods_2y = 4, 8
     if term == "Y":
         periods_1y, periods_2y = 1, 2
     elif term == "H":
@@ -31,7 +31,7 @@ def make_delta_plot(
     data_by_entity: Dict[str, pd.DataFrame],
     selected_firm_name: str,
     term: str,
-    view_selection: str = 'all', # <-- NEW ARGUMENT
+    view_selection: str = 'all', 
 ) -> go.Figure:
     """Creates the % change line chart."""
     fig = go.Figure()
@@ -54,11 +54,9 @@ def make_delta_plot(
         color_idx += 1
 
         for delta_type, series in deltas.items():
-            # --- START OF FIX ---
-            # If a view is selected, only show the matching delta type
             if view_selection != 'all' and delta_type != view_selection:
                 continue
-            # --- END OF FIX ---
+
 
             is_primary_entity = entity_name in [selected_firm_name, "Market"]
             
