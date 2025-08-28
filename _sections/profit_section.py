@@ -1,4 +1,3 @@
-# _sections/profit_section.py
 from dash import dcc, html, Input, Output, State, callback_context, no_update
 from dash.dependencies import MATCH, ALL
 from dash.exceptions import PreventUpdate
@@ -8,7 +7,6 @@ import re
 import plotly.express as px
 from plotly.subplots import make_subplots
 
-# Import helpers
 from _analytics.market_share import compute_full_market_share_data
 from _visual.graph_hier_bar import (
     node_parent_values, donut_for_hovered_node,
@@ -23,7 +21,6 @@ def _extract_cross_sectional_interaction(event_data):
         return None, None, None
     
     pt = event_data["points"][0]
-    # For horizontal bars, the label is on the y-axis
     node_label = pt.get("y") 
     custom_data = pt.get("customdata", {})
     node_key = custom_data.get("node_key")
@@ -34,16 +31,15 @@ def _extract_cross_sectional_interaction(event_data):
 def _section(sec: str, title: str):
     """Builds the static HTML structure for a single Profitability section."""
     return html.Div(className="layout", children=[
-        # Stores for state management
+
         dcc.Store(id={"type": "ps-level-path", "sec": sec}, data=[]),
         dcc.Store(id={"type": "ps-ms-data-store", "sec": sec}, data=None),
         dcc.Store(id={"type": "ps-compared-firms", "sec": sec}, data=[]),
         dcc.Store(id={"type": "ps-selected-colid", "sec": sec}, data=None),
         dcc.Store(id={"type": "ps-section-params-store", "sec": sec}, data=None),
-        dcc.Store(id={"type": "ps-last-hovered-month", "sec": sec}, data=None), # Store for cross-sectional plot
+        dcc.Store(id={"type": "ps-last-hovered-month", "sec": sec}, data=None), 
         
         html.Div(className="panel", children=[
-            # Toolbar
             html.Div(className="toolbar-row", style={'justifyContent': 'space-between'}, children=[
                 html.Div(className='toolbar-group', children=[
                     html.Button([html.Span("arrow_back", className="icon"), "Back"], id={"type": "ps-btn-back", "sec": sec}, className="btn"),
@@ -51,25 +47,21 @@ def _section(sec: str, title: str):
                 ]),
                 html.Div(id={"type": "ps-colid-selector-container", "sec": sec}, className='toolbar-group')
             ]),
-
-            # Row 1: Market Share Plots
+  
             html.Div(style={"display": "flex", "gap": "12px", "alignItems": "stretch", "width": "92%", "marginTop": "10px"},
                 children=[
                     html.Div(style={"flex": "2.5", "border": "1px solid #eee", "borderRadius": "10px"}, children=[dcc.Graph(id={"type": "ps-market-share-treemap", "sec": sec}, style={"height": "400px"})]),
                     html.Div(id={"type": "ps-ms-line-plot-container", "sec": sec}, style={"display": "flex", "gap": "8px", "flex": "7.5"}),
                 ]
             ),
-            
-            # Row 2: Hierarchy Time-Series Plot
+               
             html.Div(style={"width": "100%", "marginTop":"10px", "border": "1px solid #eee", "borderRadius": "10px"},
                 children=[html.Div(id={"type": "ps-hierarchy-line-plot-container", "sec": sec}, style={"display": "flex", "gap": "8px"})]
             ),
-            
-            # Row 3: Mode-Dependent Cross-Sectional Plot with Hover Overlay
+
             html.Div(style={"width": "100%", "marginTop":"10px", "border": "1px solid #eee", "borderRadius": "10px", "position": "relative"},
                 children=[
                      html.Div(id={"type": "ps-cross-sectional-plot-container", "sec": sec}, style={"display": "flex", "gap": "8px"}),
-                     # Hover overlay positioned relative to this container
                      html.Div(id={"type": "ps-hover-overlay", "sec": sec}, style={"display": "none"}, children=[
                          dcc.Graph(id={"type": "ps-hover-donut", "sec": sec}, config={"displayModeBar": False, "staticPlot": True}),
                          html.Div(id={"type": "ps-summary-content", "sec": sec}, style={"padding": "8px"})
@@ -85,23 +77,18 @@ def make_profit_sections(section_cfgs, namer, hier):
     for cfg in section_cfgs:
         v = _section(cfg["sec"], cfg["title"])
         num_sub = cfg.get("sub_sec", 1)
-        # Store the entire section config for later access
         v.children[4].data = cfg 
         
-        # Get containers for dynamic plot generation
         ms_container = v.children[6].children[1].children[1]
         hier_line_container = v.children[6].children[2].children[0]
         cross_sec_container = v.children[6].children[3].children[0]
-        
-        # Create subplot wrappers based on sub_sec count
+
         ms_container.children = [html.Div(id={"type": "ps-ms-subplot-wrapper", "sec": cfg["sec"], "sub": i}, style={'flex': 1}, children=[dcc.Graph(id={"type": "ps-market-share-line-plot", "sec": cfg["sec"], "sub": i}, style={"height": "400px"})]) for i in range(num_sub)]
         hier_line_container.children = [html.Div(id={"type": "ps-hier-line-subplot-wrapper", "sec": cfg["sec"], "sub": i}, style={'flex': 1}, children=[dcc.Graph(id={"type": "ps-hierarchy-line-plot", "sec": cfg["sec"], "sub": i}, style={"height": "400px"}, clear_on_unhover=True)]) for i in range(num_sub)]
         cross_sec_container.children = [html.Div(id={"type": "ps-cross-sec-subplot-wrapper", "sec": cfg["sec"], "sub": i}, style={'flex': 1}, children=[dcc.Graph(id={"type": "ps-cross-sectional-plot", "sec": cfg["sec"], "sub": i}, style={"height": "400px"}, clear_on_unhover=True)]) for i in range(num_sub)]
-        
-        # Create colid radio selector
+
         colid_options, default_colid = [], None
         if "colid" in cfg and isinstance(cfg["colid"], list) and len(cfg["colid"]) > 1:
-            # Use the first part of the first spec to get a valid list_no for naming
             spec_for_naming = (cfg["spec"][0] if isinstance(cfg["spec"], list) else cfg["spec"]).split(" + ")[0]
             list_no_for_naming = spec_for_naming.split(":")[0]
 
@@ -113,7 +100,7 @@ def make_profit_sections(section_cfgs, namer, hier):
             default_colid = cfg["colid"][0] if isinstance(cfg["colid"], list) else cfg["colid"]
 
         
-        v.children[3].data = default_colid # Store default colid
+        v.children[3].data = default_colid 
         colid_selector_container = v.children[6].children[0].children[1]
         if colid_options:
             colid_selector_container.children = dcc.RadioItems(
@@ -150,8 +137,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
             return new_list
         return no_update
 
-    # Callbacks for M/S plots are largely identical to hier_section, but use ps-stores
-    # and the selected_colid.
     @app.callback(
         Output({"type": "ps-market-share-line-plot", "sec": MATCH, "sub": ALL}, "figure"),
         Output({"type": "ps-ms-data-store", "sec": MATCH}, "data"),
@@ -172,11 +157,9 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
         df_master = pd.DataFrame(master)
         firm_cd_norm = _canon_fin_cd_value(firm_cd)
         entire_market = run_params.get("entireMarket", [])
-        # --- FIX: Normalize spec list first ---
         spec_config = section_cfg.get("spec")
         spec_list = [spec_config] if isinstance(spec_config, str) else (spec_config or [])
         
-        # --- THEN, use the normalized list for the treemap ---
         treemap_spec_str = (spec_list[0] or "").split(' + ')[0]
         treemap_nodes = parse_custom_nodes(treemap_spec_str, hier) if not level_path else None
         treemap_ms_data = compute_full_market_share_data(df_master, hier_by_list=hier, list_nos=list_nos, colid=selected_colid, level_path=level_path, entire_market_cds=entire_market, groups=run_params.get("groups", {}), custom_nodes=treemap_nodes)
@@ -250,7 +233,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
         prevent_initial_call=True
     )
     def _update_treemap(hoverData_list, ms_data, firm_cd, run_params):
-        # This callback is identical in function to hier_section's version
         hoverData = next((h for h in hoverData_list if h), None)
         if not ms_data or not run_params or not hoverData: 
             raise PreventUpdate
@@ -312,7 +294,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
 
     @app.callback(
         Output({"type": "ps-hierarchy-line-plot", "sec": MATCH, "sub": ALL}, "figure"),
-        # Re-renders when any of these change
         Input("ft-store-master", "data"),
         Input({"type": "ps-level-path", "sec": MATCH}, "data"),
         Input({"type": "ps-compared-firms", "sec": MATCH}, "data"),
@@ -350,7 +331,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
             all_values_for_scaling = []
             color_map = {}
             if mode == 'account_horizontal':
-                # Determine the set of accounts to create a canonical color order
                 first_firm_df = df_master[df_master.finance_cd == firms_to_plot[0]] if firms_to_plot else pd.DataFrame()
                 if not first_firm_df.empty:
                     nodes_for_level = parse_custom_nodes(spec_for_subplot, hier) if not level_path else None
@@ -368,8 +348,7 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
                     parts = [p.strip() for p in spec_for_subplot.split('+')]
                     spec_L_str, spec_R_str = (parts[0] if len(parts) > 0 else ""), (parts[1] if len(parts) > 1 else "")
                     
-                    # --- REQUIREMENT 3: Enhanced Naming ---
-                    list_name_L = namer.list_label(spec_L_str.split(':')[0], include_id=False) if spec_L_str else "L"
+                      list_name_L = namer.list_label(spec_L_str.split(':')[0], include_id=False) if spec_L_str else "L"
                     list_name_R = namer.list_label(spec_R_str.split(':')[0], include_id=False) if spec_R_str else "R"
 
                     if spec_L_str:
@@ -421,7 +400,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
                     x=series.index, y=[v / scale for v in series.values], **trace_data
                 ))
 
-            # --- RESCALER Step 4: Update the layout with the new axis title ---
             fig_sub.update_layout(title_text="Time-Series of Current Hierarchy Level", yaxis_title=y_axis_title, hovermode="x unified", margin=dict(l=20,r=20,t=40,b=20), showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
             all_figs.append(fig_sub)
             
@@ -429,12 +407,11 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
     
     @app.callback(
         Output({"type": "ps-cross-sectional-plot", "sec": MATCH, "sub": ALL}, "figure"),
-        # Re-renders when these change
         Input("ft-store-master", "data"),
         Input({"type": "ps-level-path", "sec": MATCH}, "data"),
         Input({"type": "ps-compared-firms", "sec": MATCH}, "data"),
         Input({"type": "ps-selected-colid", "sec": MATCH}, "data"),
-        Input({"type": "ps-last-hovered-month", "sec": MATCH}, "data"), # Triggered by hover
+        Input({"type": "ps-last-hovered-month", "sec": MATCH}, "data"),
         State("ft-store-run-params", "data"),
         State({"type": "ps-section-params-store", "sec": MATCH}, "data"),
     )
@@ -463,7 +440,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
             fig_sub = None
 
             if mode == 'account_horizontal':
-                # --- FIX: Initialize fig_sub for this mode ---
                 fig_sub = go.Figure()
 
                 spec_str_for_subplot = spec_list[i if num_sub > 1 else 0]
@@ -514,9 +490,7 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
                     all_figs.append(go.Figure()); continue
                 
                 if level_path:
-                    # In side-by-side mode, level_path is generic (e.g. ['A']), not list-specific
                     parent_acd = level_path[-1]
-                    # Determine list_no from the spec for this subplot
                     list1_no = parse_custom_nodes(spec1_str, hier)[0].split(":")[1]
                     list2_no = parse_custom_nodes(spec2_str, hier)[0].split(":")[1]
                     y_nodes_acd = get_children(hier.get(list1_no, {}), parent_acd)
@@ -532,15 +506,12 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
                 y_labels_map = {acd: namer.account_label(list1_no, acd, descendent=False, include_id=False) for acd in y_nodes_acd}
                 y_categories_sorted_acd = sorted(y_labels_map.keys(), key=lambda k: natural_key(y_labels_map[k]))
                 y_labels_sorted = [y_labels_map[k] for k in y_categories_sorted_acd]
-
-                # --- Step 1: Collect all raw data values from all firms FIRST ---
                 all_vals_for_scaling = []
                 data_to_plot = []
                 for firm_idx, current_firm_cd in enumerate(firms_to_plot):
                     firm_df = df_master[df_master.finance_cd == current_firm_cd]
                     if firm_df.empty: continue
 
-                    # When path is generic, create specific paths for the helper function
                     path_L = [f"acc:{list1_no}:{p}" for p in level_path]
                     path_R = [f"acc:{list2_no}:{p}" for p in level_path]
 
@@ -556,12 +527,10 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
                     all_vals_for_scaling.extend(x_vals2)
                     data_to_plot.append({"firm_cd": current_firm_cd, "x1": x_vals1, "x2": x_vals2})
 
-                # --- Step 2: Now that all values are collected, perform scaling calculations ---
                 max_abs_val = max(abs(v) for v in all_vals_for_scaling) if all_vals_for_scaling else 1
                 scale, unit_lab = select_rescaler_from_values(all_vals_for_scaling)
                 axis_limit = (max_abs_val / scale) * 1.1 if scale != 0 else max_abs_val * 1.1
 
-                # --- Step 3: Loop again to add traces with SCALED data ---
                 for firm_data in data_to_plot:
                     current_firm_cd = firm_data["firm_cd"]
                     firm_name = namer.finance_label(current_firm_cd, include_id=False)
@@ -598,7 +567,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
                 if unit_lab:
                     value_axis_title = f"{value_axis_title} ({unit_lab})"
 
-                # Generate rescaled tick labels for the symmetric axis
                 tick_values = pd.to_numeric(pd.cut(pd.Series([-axis_limit*scale, axis_limit*scale]), bins=5).unique().categories.right)
                 tick_labels = [f'{abs(v/scale):,.0f}' for v in tick_values]
 
@@ -622,7 +590,7 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
         Input({"type": "ps-cross-sectional-plot", "sec": MATCH, "sub": ALL}, "clickData"),
         Input({"type": "ps-btn-back", "sec": MATCH}, "n_clicks"),
         State({"type": "ps-level-path", "sec": MATCH}, "data"),
-        State({"type": "ps-section-params-store", "sec": MATCH}, "data"), # <-- Add section_cfg state
+        State({"type": "ps-section-params-store", "sec": MATCH}, "data"), 
         prevent_initial_call=True,
     )
     def _nav_section(clickData_list, back_clicks, level_path, section_cfg):
@@ -643,16 +611,10 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
             try:
                 _, list_no, acd = node_key.split(":")
                 if get_children(hier.get(list_no, {}), acd):
-                    
-                    # --- REFACTORED LOGIC FOR UNIFORM PATH ---
-                    # For side-by-side, we store a generic path using only the account code.
-                    # This ensures the drill-down applies symmetrically to both sides.
                     mode = section_cfg.get("mode")
                     if mode == 'side-by-side':
-                        # Store only the account code, not the specific list it came from
                         path_to_add = acd
                     else:
-                        # For other modes, keep the specific node_key
                         path_to_add = node_key
 
                     return (level_path or []) + [path_to_add]
@@ -688,7 +650,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
         if df_scope.empty: return go.Figure(), {"display": "none"}, no_update
 
         if section_cfg.get("mode") == 'side-by-side':
-            # This side-by-side logic is already correct and remains unchanged.
             try:
                 spec_for_subplot = section_cfg.get("spec")[point_data['curveNumber'] // 2]
                 parts = [p.strip() for p in spec_for_subplot.split('+')]
@@ -734,7 +695,6 @@ def register_profit_section_callbacks(app, hier, namer, list_nos, colid, term, s
             except Exception:
                 return no_update, {"display": "none"}, no_update
         else:
-            # --- COMPLETED: Summary logic for single-view modes ---
             donut_fig, _, _, _ = donut_for_hovered_node(hier, df_scope, selected_colid, node_key, hovered_month, namer=namer)
             
             summary_items = []
